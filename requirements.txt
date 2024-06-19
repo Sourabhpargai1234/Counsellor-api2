@@ -4,3 +4,6 @@ huggingface-hub==0.23.2
 pipeline==0.1.0
 python-dotenv==1.0.1
 transformers==4.41.2
+Flask==3.0.3
+Flask-Cors==4.0.1
+jsonify==0.5

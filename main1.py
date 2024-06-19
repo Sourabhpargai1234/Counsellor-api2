@@ -41,6 +41,11 @@ def qa_endpoint():
     # Return the result as JSON response
     return jsonify(result)
 
+@app.route('/', methods=['GET'])
+def success():
+    data = {'message': 'Server set-up successful', 'status': 'OK'}
+    return jsonify(data)
+
 @app.route('/llm', methods=['POST'])
 def llm_endpoint():
     try:
