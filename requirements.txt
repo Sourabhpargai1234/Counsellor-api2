@@ -1,6 +1,5 @@
 gradientai
 python-dotenv
-huggingface-hub
 pipeline
 python-dotenv
 transformers
@@ -8,4 +7,3 @@ Flask
 Flask-Cors
 jsonify
 tensorflow
-tensorflow-hub
