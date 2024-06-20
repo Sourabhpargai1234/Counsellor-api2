@@ -11,7 +11,7 @@ import os
 
 
 # Load the model once at the start
-qa = pipeline('question-answering')
+#qa = pipeline('question-answering')
 
 # Initialize Flask application
 app = Flask(__name__)
