@@ -1,9 +1,5 @@
 gradientai
 python-dotenv
-pipeline
-python-dotenv
-transformers
 Flask
 Flask-Cors
 jsonify
-tensorflow

@@ -2,7 +2,7 @@
 import sys
 import json
 from flask import Flask, request, jsonify
-from transformers import pipeline
+#from transformers import pipeline
 from gradientai import Gradient
 from gradientai.openapi.client.exceptions import UnauthorizedException
 from flask_cors import CORS
@@ -23,7 +23,7 @@ GRADIENT_ACCESS_TOKEN = os.getenv('GRADIENT_ACCESS_TOKEN')
 GRADIENT_WORKSPACE_ID = os.getenv('GRADIENT_WORKSPACE_ID')
 
 # Define endpoint for question answering
-@app.route('/qa', methods=['POST'])
+'''@app.route('/qa', methods=['POST'])
 def qa_endpoint():
     # Get JSON data from the request body
     data = request.get_json()
@@ -39,7 +39,7 @@ def qa_endpoint():
     result = qa(context=context, question=question)
 
     # Return the result as JSON response
-    return jsonify(result)
+    return jsonify(result)'''
 
 @app.route('/', methods=['GET'])
 def success():
