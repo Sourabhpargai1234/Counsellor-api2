@@ -1,92 +1,66 @@
-# Import necessary modules
-import sys
-import json
-from flask import Flask, request, jsonify
-#from transformers import pipeline
+import os
+import asyncio
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
 from gradientai import Gradient
 from gradientai.openapi.client.exceptions import UnauthorizedException
-from flask_cors import CORS
 from dotenv import load_dotenv
-import os
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+import uvicorn
 
-
-# Load the model once at the start
-#qa = pipeline('question-answering')
-
-# Initialize Flask application
-app = Flask(__name__)
-CORS(app)
-
+# Load environment variables from .env file
 load_dotenv()
 
 GRADIENT_ACCESS_TOKEN = os.getenv('GRADIENT_ACCESS_TOKEN')
 GRADIENT_WORKSPACE_ID = os.getenv('GRADIENT_WORKSPACE_ID')
 
-# Define endpoint for question answering
-'''@app.route('/qa', methods=['POST'])
-def qa_endpoint():
-    # Get JSON data from the request body
-    data = request.get_json()
+app = FastAPI()
 
-    # Extract 'context' and 'question' from JSON data
-    context = data.get('context')
-    question = data.get('question')
+# Allow CORS for local development and testing
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-    if not context or not question:
-        return jsonify({'error': 'Both context and question parameters are required.'}), 400
+# Initialize the model once and reuse it
+gradient = Gradient(access_token=GRADIENT_ACCESS_TOKEN)
+base_model = gradient.get_base_model(base_model_slug="nous-hermes2")
+new_model_adapter = base_model.create_model_adapter(name="test model 3")
 
-    # Perform question answering
-    result = qa(context=context, question=question)
+class Question(BaseModel):
+    question: str
 
-    # Return the result as JSON response
-    return jsonify(result)'''
+@app.get("/")
+async def root():
+    return {"message": "Server is running successfully"}
 
-@app.route('/', methods=['GET'])
-def success():
-    data = {'message': 'Server set-up successful', 'status': 'OK'}
-    return jsonify(data)
 
-@app.route('/llm', methods=['POST'])
-def llm_endpoint():
+@app.post("/ask")
+async def ask_question(question: Question):
+    sample_query = f"### Instruction: {question.question} \n\n### Response:"
+
     try:
-        # Get JSON data from the POST request
-        data = request.json
-        if 'question' not in data:
-            return jsonify({'error': 'Missing question parameter'}), 400
+        print(f"Asking: {sample_query}")
+        
+        # Use asyncio to handle the request asynchronously
+        completion = await asyncio.to_thread(
+            new_model_adapter.complete, query=sample_query, max_generated_token_count=100
+        )
+        response = completion.generated_output
+        print(f"Generated (before fine-tune): {response}")
 
-        question = data['question']
-
-        with Gradient(access_token=GRADIENT_ACCESS_TOKEN) as gradient:
-            base_model = gradient.get_base_model(base_model_slug="nous-hermes2")
-
-            new_model_adapter = base_model.create_model_adapter(
-                name="test model 3"
-            )
-            sample_query = f"### Instruction: {question} \n\n### Response:"
-            print(f"Asking: {sample_query}")
-
-            samples = [
-                { "inputs": "### Instruction: What is your branch \n\n### Response: Btech" },
-                { "inputs": "### Instruction: Skills ? \n\n### Response: Coding, Development" },
-                { "inputs": "### Instruction: Job? \n\n### Response: SDE at google" },
-                { "inputs": "### Instruction: What is your branch \n\n### Response: Mechanical Engineering" },
-            ]
-
-            new_model_adapter.fine_tune(samples=samples)
-
-            completion = new_model_adapter.complete(query=sample_query, max_generated_token_count=100).generated_output
-            print(f"Generated (after fine-tune): {completion}")
-
-            new_model_adapter.delete()
-
-        return jsonify({'generated_output': completion})
+        return JSONResponse(content={"response": response})
 
     except UnauthorizedException as e:
-        return jsonify({'error': 'Unauthorized: Check your API key and permissions.'}), 401
+        print("Unauthorized: Check your API key and permissions.")
+        raise HTTPException(status_code=401, detail="Unauthorized: Check your API key and permissions.")
     except Exception as e:
-        return jsonify({'error': f'An error occurred: {str(e)}'}), 500
- 
+        print(f"An error occurred: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
-if __name__ == '__main__':
-    # Run Flask web server
-    app.run(debug=True)
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8000)
