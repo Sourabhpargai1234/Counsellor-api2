@@ -1,8 +1,3 @@
-gradientai
-python-dotenv
 Flask
-Flask-Cors
-jsonify
-fastapi
-pydantic
-uvicorn
+tensorflow
+numpy

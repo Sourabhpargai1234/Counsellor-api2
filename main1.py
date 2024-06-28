@@ -1,66 +1,45 @@
-import os
-import asyncio
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-from gradientai import Gradient
-from gradientai.openapi.client.exceptions import UnauthorizedException
-from dotenv import load_dotenv
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-import uvicorn
+import tensorflow as tf
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, Embedding, GlobalAveragePooling1D
+from tensorflow.keras.preprocessing.text import Tokenizer
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+import numpy as np
 
-# Load environment variables from .env file
-load_dotenv()
+# Sample data - more comprehensive
+sentences = [
+    'I love this movie', 'I hate this movie', 'This was an amazing experience',
+    'I am not a fan of this', 'Absolutely fantastic!', 'Not my cup of tea',
+    'This is a great day', 'I feel terrible', 'This is so bad', 'I am very happy',
+    'I am extremely sad', 'This is the best!', 'I don’t like this', 'I am delighted',
+    'I am disappointed', 'It’s a bad day today', 'I had a great time', 'I am upset',
+    'What a wonderful experience', 'I regret coming here'
+]
 
-GRADIENT_ACCESS_TOKEN = os.getenv('GRADIENT_ACCESS_TOKEN')
-GRADIENT_WORKSPACE_ID = os.getenv('GRADIENT_WORKSPACE_ID')
+labels = [1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0]  # 1: positive, 0: negative
 
-app = FastAPI()
+# Tokenizing and padding
+tokenizer = Tokenizer(num_words=100)
+tokenizer.fit_on_texts(sentences)
+sequences = tokenizer.texts_to_sequences(sentences)
+padded_sequences = pad_sequences(sequences, padding='post')
 
-# Allow CORS for local development and testing
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Model definition
+model = Sequential([
+    Embedding(100, 16, input_length=padded_sequences.shape[1]),
+    GlobalAveragePooling1D(),
+    Dense(16, activation='relu'),
+    Dense(1, activation='sigmoid')
+])
 
-# Initialize the model once and reuse it
-gradient = Gradient(access_token=GRADIENT_ACCESS_TOKEN)
-base_model = gradient.get_base_model(base_model_slug="nous-hermes2")
-new_model_adapter = base_model.create_model_adapter(name="test model 3")
+model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
 
-class Question(BaseModel):
-    question: str
+# Train the model
+model.fit(padded_sequences, np.array(labels), epochs=30)
 
-@app.get("/")
-async def root():
-    return {"message": "Server is running successfully"}
+# Save the model
+model.save('sentiment_model.h5')
 
-
-@app.post("/ask")
-async def ask_question(question: Question):
-    sample_query = f"### Instruction: {question.question} \n\n### Response:"
-
-    try:
-        print(f"Asking: {sample_query}")
-        
-        # Use asyncio to handle the request asynchronously
-        completion = await asyncio.to_thread(
-            new_model_adapter.complete, query=sample_query, max_generated_token_count=100
-        )
-        response = completion.generated_output
-        print(f"Generated (before fine-tune): {response}")
-
-        return JSONResponse(content={"response": response})
-
-    except UnauthorizedException as e:
-        print("Unauthorized: Check your API key and permissions.")
-        raise HTTPException(status_code=401, detail="Unauthorized: Check your API key and permissions.")
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+# Save tokenizer
+import pickle
+with open('tokenizer.pickle', 'wb') as handle:
+    pickle.dump(tokenizer, handle, protocol=pickle.HIGHEST_PROTOCOL)
